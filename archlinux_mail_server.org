@@ -1,0 +1,684 @@
+:SETUP:
+#+TITLE: Mail Server on Archlinux.
+#+STARTUP: overview indent
+#+DRAWERS: PROPERTIES NOTES SETUP
+#+STARTUP: hidestars
+#+FILETAGS: Computer
+#+OPTIONS: H:4 num:nil tags:nil toc:nil timestamps:t
+
+:END:
+
+#+BEGIN_HTML
+---
+layout: level1
+title: Mail Server on Archlinux.
+---
+#+END_HTML
+
+* Home Mail Server Using ArchLinux, Postfix and Dovecot.
+This tutorial aims to show you how to set up a mail server with
+virtual users, imap and POP3 email, spamassassin, anti-virus, postgrey
+and mail filtering.
+
+I run a couple of mail servers with a small number (around five)
+users. I didn't want to give each user a Linux account, so needed
+something that let me set up virtual users. Until recently I have been
+using Ubuntu on my mail servers and have followed the excellent [[http://library.linode.com/email/postfix/dovecot-mysql-ubuntu-10.04-lucid][Linode]]
+tutorial. Recently, I moved my servers to Arch Linux and wanted to
+migrate my email setup. There is an excellent tutorial on the Arch
+Wiki on setting up a [[https://wiki.archlinux.org/index.php/SOHO_Postfix][SOHO]] mail server. However, it didn't quite fit my
+needs, so I ended up mixing and matching the Linode and Arch Wiki
+tutorials. This document is partly to remind me how I set things up, so
+I can do it again and I hope that it might be useful to others.
+
+** Overview.
+Virtual users are stored in a MySQL database and are managed using the
+[[http://postfixadmin.sourceforge.net/][PostfixAdmin]] web based interface. Postfix is used as a Mail Transfer
+Agent (MTA), but mail is delivered locally using Dovecot as the Local
+Delivery Agent (LDA). This allows me to use Dovecot's Pigeonhole mail
+filtering system to direct mail to an appropriate IMAP folder.
+
+Sending and receiving email is secured via SSL and the server offers
+SMTP auth, so users can send email, but spammers can't use the system
+as a relay.
+
+Spam is controlled using the [[http://postgrey.schweikert.ch/][Postgrey]] Postfix policy server. From the
+Postgrey web site:
+
+"When a request for delivery of a mail is received by Postfix via
+SMTP, the triplet CLIENT_IP / SENDER / RECIPIENT is built. If it is
+the first time that this triplet is seen, or if the triplet was first
+seen, less than 5 minutes ago, then the mail gets rejected with a
+temporary error. Hopefully spammers or viruses will not try again
+later, as it is however required per RFC."
+
+I find that this removes almost all spam from my system and it isn't
+worth the extra overhead of running spamassassin. If you want to run
+spamassassin and clamav you will probably need to install [[http://www.ijs.si/software/amavisd/][amavisd-new]] .
+
+I have also provided some instructions for installing the [[http://roundcube.net][RoundCube]]
+web mail client. Note this tutorial doesn't explain how to set up a
+working Apache server.
+
+You may want to  monitor how many emails are being sent and received,
+plus monitor the number of emails that are rejected as spam. The
+[[http://mailgraph.schweikert.ch/][mailgraph]] package is an easy to install package that produces daily,
+weekly, monthly and yearly graphs of received/sent and
+bounced/rejected mail.
+
+** Using This File.
+The original file for the html page was written using Emacs [[http://orgmode.org][org-mode]]
+and is available from [[https://github.com/geekinthesticks/ArchLinux-Mail-Server][Github]] . If you are using Emacs and have enabled
+[[http://orgmode.org/manual/release_7.7/Library-of-Babel.html#Library-of-Babel][the Library of Babel]] you can generate all the configuration files from
+this file using the key sequence "C-c C-v t".
+
+** Installation.
+
+#+BEGIN_SRC sh
+  pacman -S php mysql apache postfix dovecot \
+   squirrelmail spamassassin pigeonhole \
+  postgrey cyrus-sasl cyrus-sasl-plugins pam_mysql
+
+#+END_SRC
+
+
+PostfixAdmin is available from [[https://aur.archlinux.org/packages.php?ID%3D28103][AUR]] . Install the package in the usual
+way. You need to edit the configuration file in
+/usr/share/webapps/postfixAdmin/config.inc.php. The sections you
+probably need to edit are shown below:
+
+#+BEGIN_SRC sh
+$CONF['configured'] = true;
+// Database Config
+// mysql = MySQL 3.23 and 4.0, 4.1 or 5
+// mysqli = MySQL 4.1+
+// pgsql = PostgreSQL
+
+
+$CONF['database_type'] = 'mysql';
+$CONF['database_host'] = 'localhost';
+$CONF['database_user'] = 'postfix';
+$CONF['database_password'] = 'YourPassword';
+$CONF['database_name'] = 'postfix';
+
+// Mailboxes
+// If you want to store the mailboxes per domain set this to 'YES'.
+// Examples:
+//   YES: /usr/local/virtual/domain.tld/username@domain.tld
+//   NO:  /usr/local/virtual/username@domain.tld
+$CONF['domain_path'] = 'YES';
+
+// If you don't want to have the domain in your mailbox set this to 'NO'.
+// Examples:
+//   YES: /usr/local/virtual/domain.tld/username@domain.tld
+//   NO:  /usr/local/virtual/domain.tld/username
+// Note: If $CONF['domain_path'] is set to NO, this setting will be forced to YES.
+$CONF['domain_in_mailbox'] = 'NO';
+
+// If you want to define your own function to generate a maildir path set this to the name of the function.
+// Notes:
+//   - this configuration directive will override both domain_path and domain_in_mailbox
+//   - the maildir_name_hook() function example is present below, commented out
+//   - if the function does not exist the program will default to the above domain_path and domain_in_mailbox settings
+$CONF['maildir_name_hook'] = 'NO';
+
+
+#+END_SRC
+
+
+Note that this tutorial assumes that your mail will be stored in
+/home/vmail/yourdomain.com/yourname/Maildir
+
+You will also need to configure Apache. Putting something like:
+
+#+BEGIN_SRC sh
+          Alias /postfixAdmin "/usr/share/webapps/postfixAdmin"
+        <Directory "/usr/share/webapps/postfixAdmin">
+                AllowOverride All
+                Options FollowSymlinks
+                Order allow,deny
+                Allow from all
+        </Directory>
+
+#+END_SRC
+
+in your httpd.conf will allow you to access PostfixAdmin. Now visit
+the setu page:
+
+#+BEGIN_SRC sh
+  http://yourdomain.com/postfixAdmin/setup.php
+#+END_SRC
+
+This will allow you to setup the database and generate a password
+which must be pasted into config.inc.php:
+
+#+BEGIN_SRC sh
+$CONF['setup_password'] = ''
+#+END_SRC
+
+When you have finished set:
+
+#+BEGIN_SRC sh
+  $CONF['configured'] = true;
+#+END_SRC
+
+You should now be able to access the PostfixAdmin web interface, but
+don't start setting up domains and users yet.
+
+** Creating the vmail User.
+All mail is stored in Maildir format under
+/home/vmail/yourdomain.com/username/Maidir.
+
+Create the vmail user and group and set appropriate permissions on
+the vmail directory:
+
+#+BEGIN_SRC sh
+groupadd -g 5000 vmail
+useradd -u 5000 -g vmail -s /sbin/nologin -d /home/vmail -m vmail
+chmod 750 /home/vmail
+#+END_SRC
+
+
+** Generate a Self Signed SSL Certificate.
+Sending and receiving mail is secured using SSL. You need to generate
+a certificate. The code below generates a certificate valid for 365
+days. Initially the certificate is protected via a
+pass phrase. However, you will need to remove this, as described, in
+order for the system to work without continually prompting you to
+enter the pass phrase.
+
+#+BEGIN_SRC sh
+  cd /etc/ssl/certs
+  openssl req -new -x509 -newkey rsa:1024 -days 365 -keyout server.key -out server.crt
+#+END_SRC
+
+When asked to ad a "Common Name" this should be the FQDN of your mail
+server e.g. "mail.mydomain.com". The process will ask you to enter a
+pass phrase. Choose a short easy one as we shall remove it in the next
+step.
+
+Remove the pass phrase:
+
+#+BEGIN_SRC sh
+  openssl rsa -in server.key -out server.key
+#+END_SRC
+
+
+Now set permissions on the keys:
+
+#+BEGIN_SRC sh
+chown nobody:nobody server.key
+chmod 600 server.key
+mv server.key /etc/ssl/private/
+#+END_SRC
+
+** Dovecot.
+This article assumes that you are using at least Dovecot 2.0 or later, which is the
+default in Arch. Dovecot has many configuration options, which are
+well commented in the default dovecot.conf. I have just given values
+for the options that are essential to get the system working.
+
+I want to use the sieve protocol to deliver mail to particular imap
+folders. The sieve plugin in Dovecot 1.0 has been replaced by
+[[http://pigeonhole.dovecot.org/][pigeonhole]] which now provides sieve support.
+
+If you want to use sieve to sort your email you must make sure that
+you use Dovecot, not Postfix, as the LDA. In addition to the section
+in dovecot.conf, pay particular attention to the section in postfix
+master.cf which uses Dovecot as the LDA.
+
+There are two configuration files for Dovecot, dovecot.conf and
+dovecot-sql.conf. Dovecot is setup to deliver mail to:
+
+#+BEGIN_SRC sh
+  /home/vmail/domain.com/user/Maildir
+#+END_SRC
+
+This allows me to place the Sieve filter scripts in "/home/vmail/domain.com/user" outside the user's Maildir.
+
+*** dovecot.conf
+#+BEGIN_SRC sh
+protocols = imap sieve
+ssl = yes
+ssl_cert = </etc/ssl/certs/mail2.wilkesley.net.crt
+ssl_key = </etc/ssl/private/mail2.wilkesley.net.key
+first_valid_uid = 5000
+first_valid_gid = 5000
+auth_username_chars = abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890.-_@
+
+namespace {
+    location = maildir:/home/vmail/%d/%n/Maildir
+    type = private
+    prefix = INBOX.
+    inbox = yes
+    hidden = yes
+}
+
+service auth {
+
+    unix_listener auth-userdb {
+        mode = 0600
+        user = vmail # User running dovecot-lda
+        #group = vmail # Or alternatively mode 0660 + dovecot-lda user in this group
+      }
+}
+
+
+passdb  {
+    driver=sql
+    args = /etc/dovecot/dovecot-sql.conf
+}
+
+userdb  {
+    driver=static
+    args = uid=5000 gid=5000 home=/home/vmail/%d/%n allow_all_users=yes
+}
+
+
+protocol imap {
+  imap_client_workarounds = delay-newmail tb-extra-mailbox-sep
+}
+protocol lda {
+
+    postmaster_address = ian@wilkesley.net
+    hostname = wilkesley.org
+    sendmail_path = /usr/sbin/sendmail
+    mail_plugins = $mail_plugins sieve
+    log_path = /var/log/dovecot-lda-errors.log
+    info_log_path = /var/log/dovecot-lda.log
+}
+
+protocol sieve {
+
+# Defaults are OK, so nothing in this section.
+
+}
+
+plugin {
+  sieve = ~/.dovecot.sieve
+  sieve_global_path = /home/vmail/globalsieverc
+  sieve_dir = ~/
+}
+
+ passdb {
+   driver = sql
+   args = /etc/dovecot/dovecot-sql.conf
+ }
+ userdb {
+   driver = sql
+   args = /etc/dovecot/dovecot-sql.conf
+ }
+
+
+#+END_SRC
+
+*** dovecot-sql.conf
+#+BEGIN_SRC sh
+
+driver = mysql
+
+connect = host=localhost dbname=postfix user=postfix password=YourPassword
+default_pass_scheme = CRYPT
+
+user_query = SELECT maildir AS mail, 5000 AS uid, 5000 AS gid, "/home/vmail/%d/%n/Maildir" AS home FROM mailbox WHERE username = '%u' AND active = '1'
+password_query = SELECT password FROM mailbox WHERE username = '%u' AND active = '1'
+
+#+END_SRC
+
+
+
+*** Checking that Dovecot is Working.
+
+You can check the Dovecot and sieve are installed correctly using
+gnutls-cli. Note that port 4190 is the default port for sieve.
+
+#+BEGIN_SRC sh
+ian:~/ $ gnutls-cli --starttls -p 4190 mail2.wilkesley.net                                                         [7:25:42]
+Resolving 'mail2.wilkesley.net'...
+Connecting to '127.0.0.1:4190'...
+
+- Simple Client Mode:
+
+"IMPLEMENTATION" "Dovecot Pigeonhole"
+"SIEVE" "fileinto reject envelope encoded-character vacation subaddress comparator-i;ascii-numeric relational regex imap4flags copy include variables body enotify environment mailbox date ihave"
+"NOTIFY" "mailto"
+"SASL" "PLAIN"
+"STARTTLS"
+"VERSION" "1.0"
+OK "Dovecot ready."
+
+#+END_SRC
+
+now enter "STARTTLS":
+
+#+BEGIN_SRC sh
+STARTTLS
+OK "Begin TLS negotiation now."
+
+#+END_SRC
+
+** Postfix.
+Postfix has many options. The configuration shown below should be
+sufficient to get you started. However, I recommend studying all the
+options available.
+*** main.cf
+#+BEGIN_SRC sh :tangle ./postfix/main.cf :exports code :noweb yes
+
+soft_bounce = yes
+queue_directory = /var/spool/postfix
+command_directory = /usr/sbin
+daemon_directory = /usr/lib/postfix
+data_directory = /var/lib/postfix
+mail_owner = postfix
+
+
+unknown_local_recipient_reject_code = 550
+
+alias_maps = hash:/etc/postfix/aliases
+
+alias_database = $alias_maps
+
+debug_peer_level = 2
+
+debugger_command =
+	 PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
+	 ddd $daemon_directory/$process_name $process_id & sleep 5
+
+sendmail_path = /usr/sbin/sendmail
+
+newaliases_path = /usr/bin/newaliases
+
+mailq_path = /usr/bin/mailq
+
+setgid_group = postdrop
+
+html_directory = no
+
+manpage_directory = /usr/share/man
+
+sample_directory = /etc/postfix/sample
+
+readme_directory = no
+
+myhostname = your_host_name
+
+mydestination = localhost, yourmailserver@yourdomain.com
+
+# You may want to modify this netmask to accept email from
+# your internal network, but not the Internet.
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+
+mynetworks_style = host
+
+# Max size in bytes which users cans send messages.
+message_size_limit = 50720000
+
+
+# Virtual Mailbox Domain Settings
+virtual_alias_maps = mysql:/etc/postfix/mysql_virtual_alias_maps.cf
+virtual_mailbox_domains = mysql:/etc/postfix/mysql_virtual_domains_maps.cf
+virtual_mailbox_maps = mysql:/etc/postfix/mysql_virtual_mailbox_maps.cf
+virtual_mailbox_limit = 51200000
+virtual_minimum_uid = 5000
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+virtual_mailbox_base = /home/vmail
+virtual_transport = dovecot
+
+#virtual_transport = dovecot
+# Additional for quota support
+virtual_create_maildirsize = yes
+virtual_mailbox_extended = yes
+virtual_mailbox_limit_maps = mysql:/etc/postfix/mysql_virtual_mailbox_limit_maps.cf
+virtual_mailbox_limit_override = yes
+virtual_maildir_limit_message = Sorry, the your maildir has overdrawn your diskspace quota, please free up some of spaces of your mailbox try again.
+virtual_overquota_bounce = yes
+
+
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_tls_security_options = $smtpd_sasl_security_options
+smtpd_tls_auth_only = no
+smtpd_tls_cert_file = /etc/ssl/certs/mail2.wilkesley.net.crt
+smtpd_tls_key_file = /etc/ssl/private/mail2.wilkesley.net.key
+smtpd_sasl_local_domain = $mydomain
+broken_sasl_auth_clients = yes
+smtpd_tls_loglevel = 1
+
+smtpd_sasl_authenticated_header = yes
+smtpd_use_tls = yes
+smtpd_sasl_auth_enable = yes
+
+
+
+# See the section about postgrey for an explanation of
+# these settings.
+smtpd_recipient_restrictions =
+  permit_mynetworks,
+  permit_sasl_authenticated,
+  reject_unauth_destination,
+  reject_invalid_hostname,
+  reject_unauth_pipelining,
+  reject_unknown_sender_domain,
+  reject_rbl_client zen.spamhaus.org,
+  reject_rbl_client list.dsbl.org,
+  reject_rbl_client bl.spamcop.net,
+  check_policy_service inet:127.0.0.1:10030
+
+# Make postfix log recipient names when rejecting an address.
+smtpd_delay_reject = yes
+
+#+END_SRC
+
+*** master.cf
+#+BEGIN_SRC sh
+
+#628       inet  n       -       n       -       -       qmqpd
+pickup    fifo  n       -       n       60      1       pickup
+cleanup   unix  n       -       n       -       0       cleanup
+qmgr      fifo  n       -       n       300     1       qmgr
+#qmgr     fifo  n       -       n       300     1       oqmgr
+tlsmgr    unix  -       -       n       1000?   1       tlsmgr
+rewrite   unix  -       -       n       -       -       trivial-rewrite
+bounce    unix  -       -       n       -       0       bounce
+defer     unix  -       -       n       -       0       bounce
+trace     unix  -       -       n       -       0       bounce
+verify    unix  -       -       n       -       1       verify
+flush     unix  n       -       n       1000?   0       flush
+proxymap  unix  -       -       n       -       -       proxymap
+proxywrite unix -       -       n       -       1       proxymap
+smtp      unix  -       -       n       -       -       smtp
+# When relaying mail as backup MX, disable fallback_relay to avoid MX loops
+relay     unix  -       -       n       -       -       smtp
+	-o smtp_fallback_relay=
+#       -o smtp_helo_timeout=5 -o smtp_connect_timeout=5
+showq     unix  n       -       n       -       -       showq
+error     unix  -       -       n       -       -       error
+retry     unix  -       -       n       -       -       error
+discard   unix  -       -       n       -       -       discard
+local     unix  -       n       n       -       -       local
+virtual   unix  -       n       n       -       -       virtual
+lmtp      unix  -       -       n       -       -       lmtp
+anvil     unix  -       -       n       -       1       anvil
+scache    unix  -       -       n       -       1       scache
+
+# Workaround for smtps not being a valid service name.
+465 inet n - n - - smtpd -o smtpd_tls_wrappermode=yes -o smtpd_sasl_auth_enable=yes
+
+
+# Dovecot is acting as the LDA.
+dovecot   unix  -       n       n       -       -       pipe
+    flags=DRhu user=vmail:vmail argv=/usr/lib/dovecot/deliver -d ${recipient}
+
+#+END_SRC
+
+*** mysql_virtual_maps.cf
+#+BEGIN_SRC sh
+user = postfix
+password = YourPassword
+hosts = localhost
+dbname = postfix
+table = alias
+select_field = goto
+where_field = address
+#+END_SRC
+
+*** mysql_virtual_domains_maps.cf
+#+BEGIN_SRC sh
+user = postfix
+password = YourPassword
+hosts = localhost
+dbname = postfix
+table = domain
+select_field = domain
+where_field = domain
+#additional_conditions = and backupmx = '0' and active = '1'
+
+
+#+END_SRC
+
+*** mysql_virtual_mailbox_limit_maps.cf
+#+BEGIN_SRC sh
+user = postfix
+password = YourPassword
+hosts = localhost
+dbname = postfix
+table = mailbox
+select_field = quota
+where_field = username
+#additional_conditions = and active = '1'
+
+
+#+END_SRC
+
+*** mysql_virtual_mailbox_maps.cf
+#+BEGIN_SRC sh
+user = postfix
+password = YourPassword
+hosts = localhost
+dbname = postfix
+
+query = SELECT CONCAT(maildir,'Maildir/') FROM mailbox WHERE username = '%s'
+
+
+#+END_SRC
+
+
+*** Postgrey.
+You can use Postgrey in combination with a number of other settings in
+Postfix to greatly reduce the amount of spam you receive. I find that
+taking these steps prevents almost all spam and I don't need to run
+spamassassin, which is a resource hog.
+
+The configuration file for postgrey is /etc/conf.d/postgrey. You might
+want to reduce the default delay for unrecognised email from 5 minutes to
+1 minute, although I stick with the default.
+
+You should then add the check_policy_service option to your Postfix
+main.cf:
+
+#+BEGIN_SRC sh
+ smtpd_recipient_restrictions =
+  permit_mynetworks,      # Allow mail from our own network
+  permit_sasl_authenticated, # Allow mail from smtp authenticated clients
+  reject_unauth_destination, # Reject any email that has invalid
+  reject_invalid_hostname,   # options.
+  reject_unauth_pipelining,
+  reject_unknown_sender_domain, # We don't want mail from unknown domains
+  reject_rbl_client zen.spamhaus.org, # Check email against various
+  reject_rbl_client list.dsbl.org,    # on line black lists.
+  reject_rbl_client bl.spamcop.net,
+  check_policy_service inet:127.0.0.1:10030 # Postgrey
+
+#+END_SRC
+
+
+** Filtering Mail with Sieve.
+Sieve support for Dovecot is now provided by [[http://http://pigeonhole.dovecot.org/][pigeonhole]] . Sieve allows
+you to write scripts that customize mail delivery. You can forward or
+store messages in special folders (useful for mailing lists and cron
+messages). If there is an error in your script, the worst that can
+happen is that the mail ends up in your Inbox instead of being sent
+elsewhere.
+
+By default sieve scripts are defined in ~/.dovecot-sieve. See [[http://wiki.dovecot.org/LDA/Sieve][this]]
+site for many examples of sieve scripts. You can also use
+[[http://libsieve-php.sourceforge.net/]] to validate your sieve script.
+
+
+I have configured Dovecot to use sieve scripts stored in the vmail user's
+home directory e.g. /home/vmail/wilkesley.org/ian/.dovecot.sieve. If
+you want users to be able to create their own scripts, you will need
+to give them write permission to this directory.
+
+** SMTP-AUTH.
+Smtp-auth ensures that your users can send email, but your mail server
+isn't an open relay. Users who are authenticated with their login
+email address and password may use the smtp server to send mail.
+
+** PHP.
+** Roundcube.
+Installing a webmail application enables you to read your email from
+anywhere there is an Internet connection. I prefer [[http://www.roundcube.net][Roundcube]] . You can
+download a tarball directly from the web site. he installation
+instructions included with the tarball are comprehensive and there is
+a web based installer. However, you need to create a MySQL database
+and a user who has all privileges for the database before running the
+installer.
+
+To access the Roundcube application you can put something like the
+folowing in your Apache vhost definition, assuming that you have
+installed Roundcube in /srv/http/webmail. This will then let you
+access Roundcube at htt://www.yourdoamin.com/webmail
+
+#+BEGIN_SRC sh
+Alias /webmail /srv/http/webmail
+<Directory /srv/http/webmail>
+     Options Indexes FollowSymLinks
+</Directory>
+
+#+END_SRC
+
+
+** Mailgraph.
+Mailgraph creates daily, weekly, monthly, and yearly graphs of sent,
+received, bounced and rejected emails. If you have spamassassin and
+clamav installed it will also report spam and viruses detected.
+
+Mailgraph is available from [[https://aur.archlinux.org/packages.php?ID%3D7780][AUR]] and its homepage is [[http://mailgraph.schweikert.ch/][here]] . The
+mailgraph.cgi file is installed into the cgi-bin directory of your web
+server. Depending on your web server's configuration you may need to
+copy this elsewhere. You will also need to add mailgraph to the
+DAEMONS array in /etc/rc.conf to ensure it's started at boot.
+
+** Send a Test Message.
+You can confirm that Postfix is correctly configured by using telnet
+from your server to send an email.
+
+#+BEGIN_SRC sh
+[root@wilkesley vmail]# telnet localhost 25
+Trying ::1...
+Connection failed: Connection refused
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+220 li40-130.members.linode.com ESMTP Postfix
+ehlo mail2.wilkesley.net
+250-li40-130.members.linode.com
+250-PIPELINING
+250-SIZE 50720000
+250-VRFY
+250-ETRN
+250-ENHANCEDSTATUSCODES
+250-8BITMIME
+250 DSN
+mail from: root@localhost
+250 2.1.0 Ok
+rcpt to: ian@localhost
+250 2.1.5 Ok
+data
+354 End data with <CR><LF>.<CR><LF>
+Subject: Test
+This is a test message.
+
+#+END_SRC
