@@ -1,0 +1,11 @@
+:SETUP:
+#+DRAWERS: SETUP NOTES PROPERTIES
+#+STARTUP: content indent
+#+INFOJS_OPT: view:overview toc:nil
+#+TITLE: An Archlinux Mail Server Using Postfix, PostfixAdmin, MySQL, Dovecot, Toundcube and Postgrey.
+#+OPTIONS: H:3 num:nil tags:nil toc:1 timestamps:t d:nil
+
+:END:
+
+Setting up an email server on Archlinux. See archlinux_mail_server.org
+for full details.
