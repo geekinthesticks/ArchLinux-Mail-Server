@@ -70,7 +70,11 @@ bounced/rejected mail.
 The original file for the html page was written using Emacs [[http://orgmode.org][org-mode]]
 and is available from [[https://github.com/geekinthesticks/ArchLinux-Mail-Server][Github]] . If you are using Emacs and have enabled
 [[http://orgmode.org/manual/release_7.7/Library-of-Babel.html#Library-of-Babel][the Library of Babel]] you can generate all the configuration files from
-this file using the key sequence "C-c C-v t".
+this file using the key sequence "C-c C-v t". The Github repo also
+contains the pre-generated configuration files.
+
+If you want to get the most up to date version of this tutorial you
+should always use the version available on Githum.
 
 ** Installation.
 
@@ -237,7 +241,7 @@ dovecot-sql.conf. Dovecot is setup to deliver mail to:
 This allows me to place the Sieve filter scripts in "/home/vmail/domain.com/user" outside the user's Maildir.
 
 *** dovecot.conf
-#+BEGIN_SRC sh
+#+BEGIN_SRC sh :tangle ./dovecot/dovecot.conf :exports code :noweb yes
 protocols = imap sieve
 ssl = yes
 ssl_cert = </etc/ssl/certs/mail2.wilkesley.net.crt
@@ -313,7 +317,7 @@ plugin {
 #+END_SRC
 
 *** dovecot-sql.conf
-#+BEGIN_SRC sh
+#+BEGIN_SRC sh #+BEGIN_SRC sh :tangle ./dovecot/dovecot-sql.conf :exports code :noweb yes
 
 driver = mysql
 
@@ -470,7 +474,7 @@ smtpd_delay_reject = yes
 
 #+END_SRC
 
-*** master.cf
+*** master.cf tangle ./postfix/master.cf :exports code :noweb yes
 #+BEGIN_SRC sh
 
 #628       inet  n       -       n       -       -       qmqpd
@@ -513,7 +517,7 @@ dovecot   unix  -       n       n       -       -       pipe
 #+END_SRC
 
 *** mysql_virtual_maps.cf
-#+BEGIN_SRC sh
+#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -523,8 +527,8 @@ select_field = goto
 where_field = address
 #+END_SRC
 
-*** mysql_virtual_domains_maps.cf
-#+BEGIN_SRC sh
+*** mysql_virtual_domains_maps.cf tangle ./postfix/mysql_virtual_domains_maps.cf :exports code :noweb yes
+#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_domains_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -538,7 +542,7 @@ where_field = domain
 #+END_SRC
 
 *** mysql_virtual_mailbox_limit_maps.cf
-#+BEGIN_SRC sh
+#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_mailbox_limit_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -552,7 +556,7 @@ where_field = username
 #+END_SRC
 
 *** mysql_virtual_mailbox_maps.cf
-#+BEGIN_SRC sh
+#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_mailbox_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -577,7 +581,7 @@ want to reduce the default delay for unrecognised email from 5 minutes to
 You should then add the check_policy_service option to your Postfix
 main.cf:
 
-#+BEGIN_SRC sh
+#+BEGIN_SRC sh tangle ./postgrey/postgrey :exports code :noweb yes
  smtpd_recipient_restrictions =
   permit_mynetworks,      # Allow mail from our own network
   permit_sasl_authenticated, # Allow mail from smtp authenticated clients
@@ -616,41 +620,6 @@ Smtp-auth ensures that your users can send email, but your mail server
 isn't an open relay. Users who are authenticated with their login
 email address and password may use the smtp server to send mail.
 
-** PHP.
-** Roundcube.
-Installing a webmail application enables you to read your email from
-anywhere there is an Internet connection. I prefer [[http://www.roundcube.net][Roundcube]] . You can
-download a tarball directly from the web site. he installation
-instructions included with the tarball are comprehensive and there is
-a web based installer. However, you need to create a MySQL database
-and a user who has all privileges for the database before running the
-installer.
-
-To access the Roundcube application you can put something like the
-folowing in your Apache vhost definition, assuming that you have
-installed Roundcube in /srv/http/webmail. This will then let you
-access Roundcube at htt://www.yourdoamin.com/webmail
-
-#+BEGIN_SRC sh
-Alias /webmail /srv/http/webmail
-<Directory /srv/http/webmail>
-     Options Indexes FollowSymLinks
-</Directory>
-
-#+END_SRC
-
-
-** Mailgraph.
-Mailgraph creates daily, weekly, monthly, and yearly graphs of sent,
-received, bounced and rejected emails. If you have spamassassin and
-clamav installed it will also report spam and viruses detected.
-
-Mailgraph is available from [[https://aur.archlinux.org/packages.php?ID%3D7780][AUR]] and its homepage is [[http://mailgraph.schweikert.ch/][here]] . The
-mailgraph.cgi file is installed into the cgi-bin directory of your web
-server. Depending on your web server's configuration you may need to
-copy this elsewhere. You will also need to add mailgraph to the
-DAEMONS array in /etc/rc.conf to ensure it's started at boot.
-
 ** Send a Test Message.
 You can confirm that Postfix is correctly configured by using telnet
 from your server to send an email.
@@ -682,3 +651,50 @@ Subject: Test
 This is a test message.
 
 #+END_SRC
+** PHP.
+You need to make some changes to /etc/php/php.ini:
+
+#+BEGIN_SRC sh
+  magic_quotes_gpc = On ; Required for postfixadmin
+  extension=imap.so ; required for Roundcube
+
+  ; Required for phpmyadmin
+  extension=mysqli.so
+  extension=mysql.so
+
+#+END_SRC
+
+** Roundcube Webmail.
+Installing a webmail application enables you to read your email from
+anywhere there is an Internet connection. I prefer [[http://www.roundcube.net][Roundcube]] . You can
+download a tarball directly from the web site. he installation
+instructions included with the tarball are comprehensive and there is
+a web based installer. However, you need to create a MySQL database
+and a user who has all privileges for the database before running the
+installer.
+
+To access the Roundcube application you can put something like the
+folowing in your Apache vhost definition, assuming that you have
+installed Roundcube in /srv/http/webmail. This will then let you
+access Roundcube at htt://www.yourdoamin.com/webmail
+
+#+BEGIN_SRC sh
+Alias /webmail /srv/http/webmail
+<Directory /srv/http/webmail>
+     Options Indexes FollowSymLinks
+</Directory>
+
+#+END_SRC
+
+
+** Mailgraph Email Statistics.
+Mailgraph creates daily, weekly, monthly, and yearly graphs of sent,
+received, bounced and rejected emails. If you have spamassassin and
+clamav installed it will also report spam and viruses detected.
+
+Mailgraph is available from [[https://aur.archlinux.org/packages.php?ID%3D7780][AUR]] and its homepage is [[http://mailgraph.schweikert.ch/][here]] . The
+mailgraph.cgi file is installed into the cgi-bin directory of your web
+server. Depending on your web server's configuration you may need to
+copy this elsewhere. You will also need to add mailgraph to the
+DAEMONS array in /etc/rc.conf to ensure it's started at boot.
+
