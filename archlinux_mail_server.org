@@ -609,16 +609,89 @@ By default sieve scripts are defined in ~/.dovecot-sieve. See [[http://wiki.dove
 site for many examples of sieve scripts. You can also use
 [[http://libsieve-php.sourceforge.net/]] to validate your sieve script.
 
-
 I have configured Dovecot to use sieve scripts stored in the vmail user's
 home directory e.g. /home/vmail/wilkesley.org/ian/.dovecot.sieve. If
 you want users to be able to create their own scripts, you will need
 to give them write permission to this directory.
 
-** SMTP-AUTH.
+** SMTP-AUTH and saslauthd.
 Smtp-auth ensures that your users can send email, but your mail server
 isn't an open relay. Users who are authenticated with their login
 email address and password may use the smtp server to send mail.
+
+You also need to configure saslauthd to use MySQL. See [[http://www.postfix.org/SASL_README.html][Postfix SASL
+Howto]] for more information.
+
+*** Configure saslauthd to use MySQL.
+Create the directory for saslauthd:
+
+#+BEGIN_SRC sh
+  mkdir -p /var/spool/postfix/var/run/saslauthd
+#+END_SRC
+
+
+
+Make a backup copy of the /etc/default/saslauthd file if it already exists:
+
+#+BEGIN_SRC sh
+  cp -a /etc/default/saslauthd /etc/default/saslauthd.bak
+#+END_SRC
+
+Edit the file /etc/default/saslauthd to match the configuration shown
+below.
+
+#+BEGIN_SRC sh
+START=yes
+DESC="SASL Authentication Daemon"
+NAME="saslauthd"
+MECHANISMS="pam"
+MECH_OPTIONS=""
+THREADS=5
+OPTIONS="-c -m /var/spool/postfix/var/run/saslauthd -r"
+#+END_SRC
+
+Next, create the file /etc/pam.d/smtp and copy in the following two
+lines. Be sure to change "mail_admin_password" to the password you
+chose for your mail administration MySQL user earlier.
+
+#+BEGIN_SRC sh
+      auth required /usr/lib/security/pam_mysql.so user=postfix passwd=iCUuGdmz host=localhost db=postfix table=mailbox usercolu\
+  mn=username passwdcolumn=password crypt=1
+     account sufficient /usr/lib/security/pam_mysql.so user=postfix passwd=iCUuGdmz host=localhost db=postfix table=mailbox use\
+  rcolumn=username passwdcolumn=password crypt=1
+
+#+END_SRC
+
+Now create:
+/etc/postfix/sasl/smtpd.conf
+
+Add the following information:
+
+#+BEGIN_SRC sh tangle ./postfix/sasl/smtpd.conf :exports code :noweb yes
+pwcheck_method: saslauthd
+mech_list: plain login
+allow_plaintext: true
+auxprop_plugin: mysql
+sql_hostnames: 127.0.0.1
+sql_user: your_user
+sql_passwd: mail_admin_password
+sql_database: postfix
+sql_select: select password from maibox where username = '%u'
+
+#+END_SRC
+
+Set the file permissions:
+
+#+BEGIN_SRC sh
+chmod o= /etc/pam.d/smtp
+chmod o= /etc/postfix/sasl/smtpd.conf
+#+END_SRC
+
+** Start All the Required Daemons.
+Add the following to the "DAEMONS=" in /etc/rc.conf:
+#+BEGIN_SRC sh
+  mysqld webmin saslauthd postfix postgrey dovecot mailgraph httpd
+#+END_SRC
 
 ** Send a Test Message.
 You can confirm that Postfix is correctly configured by using telnet
