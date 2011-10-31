@@ -1,0 +1,12 @@
+
+smtpd_recipient_restrictions =
+ permit_mynetworks,      # Allow mail from our own network
+ permit_sasl_authenticated, # Allow mail from smtp authenticated clients
+ reject_unauth_destination, # Reject any email that has invalid
+ reject_invalid_hostname,   # options.
+ reject_unauth_pipelining,
+ reject_unknown_sender_domain, # We don't want mail from unknown domains
+ reject_rbl_client zen.spamhaus.org, # Check email against various
+ reject_rbl_client list.dsbl.org,    # on line black lists.
+ reject_rbl_client bl.spamcop.net,
+ check_policy_service inet:127.0.0.1:10030 # Postgrey

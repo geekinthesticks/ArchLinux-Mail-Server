@@ -1,0 +1,104 @@
+
+soft_bounce = yes
+queue_directory = /var/spool/postfix
+command_directory = /usr/sbin
+daemon_directory = /usr/lib/postfix
+data_directory = /var/lib/postfix
+mail_owner = postfix
+
+
+unknown_local_recipient_reject_code = 550
+
+alias_maps = hash:/etc/postfix/aliases
+
+alias_database = $alias_maps
+
+debug_peer_level = 2
+
+debugger_command =
+         PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
+         ddd $daemon_directory/$process_name $process_id & sleep 5
+
+sendmail_path = /usr/sbin/sendmail
+
+newaliases_path = /usr/bin/newaliases
+
+mailq_path = /usr/bin/mailq
+
+setgid_group = postdrop
+
+html_directory = no
+
+manpage_directory = /usr/share/man
+
+sample_directory = /etc/postfix/sample
+
+readme_directory = no
+
+myhostname = your_host_name
+
+mydestination = localhost, yourmailserver@yourdomain.com
+
+# You may want to modify this netmask to accept email from
+# your internal network, but not the Internet.
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+
+mynetworks_style = host
+
+# Max size in bytes which users cans send messages.
+message_size_limit = 50720000
+
+
+# Virtual Mailbox Domain Settings
+virtual_alias_maps = mysql:/etc/postfix/mysql_virtual_alias_maps.cf
+virtual_mailbox_domains = mysql:/etc/postfix/mysql_virtual_domains_maps.cf
+virtual_mailbox_maps = mysql:/etc/postfix/mysql_virtual_mailbox_maps.cf
+virtual_mailbox_limit = 51200000
+virtual_minimum_uid = 5000
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+virtual_mailbox_base = /home/vmail
+virtual_transport = dovecot
+
+#virtual_transport = dovecot
+# Additional for quota support
+virtual_create_maildirsize = yes
+virtual_mailbox_extended = yes
+virtual_mailbox_limit_maps = mysql:/etc/postfix/mysql_virtual_mailbox_limit_maps.cf
+virtual_mailbox_limit_override = yes
+virtual_maildir_limit_message = Sorry, the your maildir has overdrawn your diskspace quota, please free up some of spaces of your mailbox try again.
+virtual_overquota_bounce = yes
+
+
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_tls_security_options = $smtpd_sasl_security_options
+smtpd_tls_auth_only = no
+smtpd_tls_cert_file = /etc/ssl/certs/mail2.wilkesley.net.crt
+smtpd_tls_key_file = /etc/ssl/private/mail2.wilkesley.net.key
+smtpd_sasl_local_domain = $mydomain
+broken_sasl_auth_clients = yes
+smtpd_tls_loglevel = 1
+
+smtpd_sasl_authenticated_header = yes
+smtpd_use_tls = yes
+smtpd_sasl_auth_enable = yes
+
+
+
+# See the section about postgrey for an explanation of
+# these settings.
+smtpd_recipient_restrictions =
+  permit_mynetworks,
+  permit_sasl_authenticated,
+  reject_unauth_destination,
+  reject_invalid_hostname,
+  reject_unauth_pipelining,
+  reject_unknown_sender_domain,
+  reject_rbl_client zen.spamhaus.org,
+  reject_rbl_client list.dsbl.org,
+  reject_rbl_client bl.spamcop.net,
+  check_policy_service inet:127.0.0.1:10030
+
+# Make postfix log recipient names when rejecting an address.
+smtpd_delay_reject = yes

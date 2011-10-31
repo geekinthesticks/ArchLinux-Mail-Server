@@ -1,0 +1,7 @@
+
+user = postfix
+password = YourPassword
+hosts = localhost
+dbname = postfix
+
+query = SELECT CONCAT(maildir,'Maildir/') FROM mailbox WHERE username = '%s'
