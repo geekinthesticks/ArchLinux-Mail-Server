@@ -18,7 +18,8 @@ title: Mail Server on Archlinux.
 * Home Mail Server Using ArchLinux, Postfix and Dovecot.
 This tutorial aims to show you how to set up a mail server with
 virtual users, imap and POP3 email, spamassassin, anti-virus, postgrey
-and mail filtering.
+and mail filtering. It's described as a "Home Mailserver", but it
+should be suitable for any small or medium sized business.
 
 I run a couple of mail servers with a small number (around five)
 users. I didn't want to give each user a Linux account, so needed
@@ -181,7 +182,6 @@ groupadd -g 5000 vmail
 useradd -u 5000 -g vmail -s /sbin/nologin -d /home/vmail -m vmail
 chmod 750 /home/vmail
 #+END_SRC
-
 
 ** Generate a Self Signed SSL Certificate.
 Sending and receiving mail is secured using SSL. You need to generate
@@ -474,8 +474,8 @@ smtpd_delay_reject = yes
 
 #+END_SRC
 
-*** master.cf tangle ./postfix/master.cf :exports code :noweb yes
-#+BEGIN_SRC sh
+*** master.cf
+#+BEGIN_SRC sh :tangle ./postfix/master.cf :exports code :noweb yes
 
 #628       inet  n       -       n       -       -       qmqpd
 pickup    fifo  n       -       n       60      1       pickup
@@ -517,7 +517,7 @@ dovecot   unix  -       n       n       -       -       pipe
 #+END_SRC
 
 *** mysql_virtual_maps.cf
-#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_maps.cf :exports code :noweb yes
+#+BEGIN_SRC sh :tangle ./postfix/mysql_virtual_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -527,8 +527,8 @@ select_field = goto
 where_field = address
 #+END_SRC
 
-*** mysql_virtual_domains_maps.cf tangle ./postfix/mysql_virtual_domains_maps.cf :exports code :noweb yes
-#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_domains_maps.cf :exports code :noweb yes
+*** mysql_virtual_domains_maps.cf
+#+BEGIN_SRC sh :tangle ./postfix/mysql_virtual_domains_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -542,7 +542,7 @@ where_field = domain
 #+END_SRC
 
 *** mysql_virtual_mailbox_limit_maps.cf
-#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_mailbox_limit_maps.cf :exports code :noweb yes
+#+BEGIN_SRC sh :tangle ./postfix/mysql_virtual_mailbox_limit_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -556,7 +556,7 @@ where_field = username
 #+END_SRC
 
 *** mysql_virtual_mailbox_maps.cf
-#+BEGIN_SRC sh tangle ./postfix/mysql_virtual_mailbox_maps.cf :exports code :noweb yes
+#+BEGIN_SRC sh :tangle ./postfix/mysql_virtual_mailbox_maps.cf :exports code :noweb yes
 user = postfix
 password = YourPassword
 hosts = localhost
@@ -581,7 +581,7 @@ want to reduce the default delay for unrecognised email from 5 minutes to
 You should then add the check_policy_service option to your Postfix
 main.cf:
 
-#+BEGIN_SRC sh tangle ./postgrey/postgrey :exports code :noweb yes
+#+BEGIN_SRC sh :tangle ./postgrey/postgrey :exports code :noweb yes
  smtpd_recipient_restrictions =
   permit_mynetworks,      # Allow mail from our own network
   permit_sasl_authenticated, # Allow mail from smtp authenticated clients
@@ -595,7 +595,6 @@ main.cf:
   check_policy_service inet:127.0.0.1:10030 # Postgrey
 
 #+END_SRC
-
 
 ** Filtering Mail with Sieve.
 Sieve support for Dovecot is now provided by [[http://http://pigeonhole.dovecot.org/][pigeonhole]] . Sieve allows
@@ -667,7 +666,7 @@ Now create:
 
 Add the following information:
 
-#+BEGIN_SRC sh tangle ./postfix/sasl/smtpd.conf :exports code :noweb yes
+#+BEGIN_SRC sh :tangle ./postfix/sasl/smtpd.conf :exports code :noweb yes
 pwcheck_method: saslauthd
 mech_list: plain login
 allow_plaintext: true
@@ -740,7 +739,7 @@ You need to make some changes to /etc/php/php.ini:
 ** Roundcube Webmail.
 Installing a webmail application enables you to read your email from
 anywhere there is an Internet connection. I prefer [[http://www.roundcube.net][Roundcube]] . You can
-download a tarball directly from the web site. he installation
+download a tarball directly from the web site. The installation
 instructions included with the tarball are comprehensive and there is
 a web based installer. However, you need to create a MySQL database
 and a user who has all privileges for the database before running the
