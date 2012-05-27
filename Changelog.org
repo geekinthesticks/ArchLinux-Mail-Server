@@ -1,0 +1,11 @@
+:SETUP:
+#+TITLE: Changelog.
+#+STARTUP: overview indent
+#+DRAWERS: PROPERTIES NOTES SETUP
+#+STARTUP: hidestars
+#+OPTIONS: H:4 num:nil tags:nil toc:nil timestamps:t
+
+:END:
+
+[2012-01-21 Sat] Updated.
+Use Dovecot sasl instead of Cyrus sasl.
