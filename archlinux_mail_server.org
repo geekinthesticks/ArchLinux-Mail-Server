@@ -258,6 +258,7 @@ namespace {
     hidden = yes
 }
 
+
 service auth {
 
     unix_listener auth-userdb {
@@ -265,6 +266,13 @@ service auth {
         user = vmail # User running dovecot-lda
         #group = vmail # Or alternatively mode 0660 + dovecot-lda user in this group
       }
+   unix_listener /var/spool/postfix/private/auth {
+    mode = 0660
+    # Assuming the default Postfix user and group
+    user = postfix
+    group = postfix
+
+}
 }
 
 
