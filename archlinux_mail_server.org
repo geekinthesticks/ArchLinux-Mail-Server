@@ -75,7 +75,7 @@ this file using the key sequence "C-c C-v t". The Github repo also
 contains the pre-generated configuration files.
 
 If you want to get the most up to date version of this tutorial you
-should always use the version available on Githum.
+should always use the version available on Github.
 
 ** Installation.
 
